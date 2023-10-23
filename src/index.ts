@@ -1,7 +1,7 @@
 import { AttachedPluginData, ExpressiveCodePlugin, replaceDelimitedValues } from '@expressive-code/core'
 import rangeParser from 'parse-numeric-range'
-import { selectAll } from 'hast-util-select'
 import { promptStyleSettings, getPromptBaseStyles } from './styles'
+import { PromptType, promptAnnotation, promptContAnnotation, promptContKey, promptKey } from './annotations'
 
 export interface PluginPromptOptions {
 	styleOverrides?: Partial<typeof promptStyleSettings.defaultSettings> | undefined
@@ -13,45 +13,92 @@ export function pluginPrompt(options: PluginPromptOptions = {}): ExpressiveCodeP
 		baseStyles: ({ theme, coreStyles, styleOverrides }) => getPromptBaseStyles(theme, coreStyles, { ...styleOverrides.prompt, ...options.styleOverrides }),
 		hooks: {
 			preprocessMetadata: ({ codeBlock }) => {
+				const data = pluginPromptData.getOrCreateFor(codeBlock)
+
+				codeBlock.meta = replaceMetaParts(codeBlock.meta, (metaPart) => {
+					if (metaPart === promptKey || metaPart === promptContKey) {
+						data.all = metaPart
+						return ''
+					}
+					return metaPart
+				})
 				codeBlock.meta = replaceDelimitedValues(
 					codeBlock.meta,
 					({ fullMatch, key, value }) => {
-						// If we aren't interested in the entry, just return it as-is
-						if (key !== 'prompt') return fullMatch
+						if (key !== promptKey && key !== promptContKey) {
+							// If we aren't interested in the entry, just return it as-is
+							return fullMatch
+						}
 
-						const lineNumbers = rangeParser(value)
-						const data = pluginPromptData.getOrCreateFor(codeBlock)
-						data.lines = lineNumbers
+						if (value === '*') {
+							data.all = key
+						} else {
+							const lines = rangeParser(value)
+							if (lines.length > 0) {
+								// Add lines to the property and remove these lines from the other property (line override)
+								if (key === promptKey) {
+									data.lines = lines
+									data.contLines = data.contLines.filter((line) => !lines.includes(line))
+								} else {
+									data.contLines = lines
+									data.lines = data.lines.filter((line) => !lines.includes(line))
+								}
+							}
+						}
 						return ''
 					},
 					{
-						valueDelimiters: ['"', "'", '/', '{...}'],
+						valueDelimiters: ['"', "'", '{...}'],
 						keyValueSeparator: '=',
 					}
 				)
+				
 			},
-			annotateCode: () => {
-				return
-			},
-			postprocessRenderedBlock: ({ codeBlock, renderData }) => {
+			annotateCode: ({ codeBlock }) => {
 				const data = pluginPromptData.getOrCreateFor(codeBlock)
-				if (data.lines.length == 0) {
-					return
-				}
-				const lines = selectAll('pre > code div.ec-line', renderData.blockAst)
-				data.lines.forEach((linenum) => {
-					if (linenum >= lines.length) {
-						return
-					}
-					lines[linenum].children.forEach((span) => {
-						if (span.type === 'element' && span.properties) {
-							span.properties.style = null
+
+				// Meta prompt
+				if (data.all === promptKey) {
+					// Annotate all but lines in the other property
+					codeBlock.getLines().forEach((line, index) => {
+						if (!data.contLines.includes(index)) {
+							line.addAnnotation(promptAnnotation)
 						}
 					})
-				})
+				} else {
+					data.lines.forEach((index) => {
+						codeBlock.getLine(index)?.addAnnotation(promptAnnotation)
+					})
+				}
+
+				// Meta promptCont
+				if (data.all === promptContKey) {
+					// Annotate all but lines in the other property
+					codeBlock.getLines().forEach((line, index) => {
+						if (!data.lines.includes(index)) {
+							line.addAnnotation(promptContAnnotation)
+						}
+					})
+				} else {
+					data.contLines.forEach((index) => {
+						codeBlock.getLine(index)?.addAnnotation(promptContAnnotation)
+					})
+				}
 			},
 		},
 	}
 }
 
-export const pluginPromptData = new AttachedPluginData<{ lines: number[] }>(() => ({ lines: [] }))
+function replaceMetaParts(meta: String, replacer: (metaPart: string) => string): string {
+	const partsReplaced = []
+	const parts = meta.split(' ');
+	for (const metaPart of parts) {
+		partsReplaced.push(replacer(metaPart))
+	}
+	return partsReplaced.join(' ')
+}
+
+export const pluginPromptData = new AttachedPluginData<{ lines: number[]; contLines: number[]; all?: PromptType }>(() => ({
+	lines: [],
+	contLines: [],
+}))

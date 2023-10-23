@@ -1,6 +1,6 @@
 {
   "name": "expressive-code-plugin-prompt",
-  "version": "0.0.1",
+  "version": "0.26.1",
   "description": "Prompt plugin for Expressive Code. Allows definition of line prompts.",
   "keywords": [],
   "author": "Ricardo Nogueira (cc-nogueira)",
@@ -35,8 +35,5 @@
     "parse-numeric-range": "^1.3.0"
   },
   "devDependencies": {
-    "tsup": "^6.7.0",
-    "typescript": "^5.0.4",
-    "vitest": "^0.29.8"
   }
 }

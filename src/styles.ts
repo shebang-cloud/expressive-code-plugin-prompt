@@ -1,10 +1,13 @@
 import { StyleSettings, ExpressiveCodeTheme, ResolvedCoreStyles } from '@expressive-code/core'
 
 export const promptClass = 'ec-prompt'
+export const promptContClass = 'ec-prompt-cont'
 
 export const promptStyleSettings = new StyleSettings({
 	promptColor: ({ coreStyles }) => coreStyles.codeForeground,
 	promptBackground: ({ coreStyles }) => coreStyles.codeBackground,
+	promptContColor: ({ coreStyles }) => coreStyles.codeForeground,
+	promptContBackground: ({ coreStyles }) => coreStyles.codeBackground,
 })
 
 declare module '@expressive-code/core' {
@@ -21,10 +24,16 @@ export function getPromptBaseStyles(theme: ExpressiveCodeTheme, coreStyles: Reso
 		themeStyleOverrides: theme.styleOverrides.prompt,
 	})
 	const result = `
-		.${promptClass} {
+		div.prose pre > code div.ec-line.${promptClass}::before {
+    		content: "$ ";
 			color: ${styles.promptColor};
 			backgroud: ${styles.promptBackground};
-		}
+  		}
+		div.prose pre > code div.ec-line.${promptContClass}::before {
+    		content: "> ";
+			color: ${styles.promptContColor};
+			backgroud: ${styles.promptContBackground};
+  		}
 	`
 	return result
 }
